@@ -20,6 +20,30 @@ impl<V> std::fmt::Debug for Node<V> {
     }
 }
 
+pub struct LRUCacheIter<'a, V, const N: usize> {
+    current_idx: Option<usize>,
+    buffer: &'a [Option<Node<V>>; N],
+}
+
+impl<'a, V, const N: usize> Iterator for LRUCacheIter<'a, V, N> {
+    type Item = &'a V;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        if let Some(index) = self.current_idx {
+            if let Some(current_node) = self.buffer[index].as_ref() {
+                let value = Some(&current_node.value);
+                self.current_idx = current_node.next;
+                value
+            } else {
+                // Catch the case where the Cache is empty
+                None
+            }
+        } else {
+            None
+        }
+    }
+}
+
 pub struct LRUCache<const N: usize, V> {
     map: HashMap<String, Index>,
     buffer: [Option<Node<V>>; N],
@@ -44,6 +68,13 @@ impl<const N: usize, V> LRUCache<N, V> {
             tail_index: 0,
             len: 0,
             free: Vec::new(),
+        }
+    }
+
+    pub fn iter(&self) -> LRUCacheIter<'_, V, N> {
+        LRUCacheIter {
+            current_idx: Some(self.head_index),
+            buffer: &self.buffer,
         }
     }
 
@@ -241,5 +272,24 @@ mod tests {
         assert_eq!(cache.get("b"), Some(&2));
         assert_eq!(cache.get("c"), Some(&3));
         assert_eq!(cache.get("d"), Some(&4));
+    }
+
+    #[test]
+    fn iter_by_recency() {
+        let mut cache = LRUCache::<100, u32>::new();
+
+        cache.set("a", 1);
+        cache.set("b", 2);
+        cache.set("c", 3);
+        cache.set("d", 4);
+        cache.set("e", 5);
+        cache.set("f", 6);
+        cache.set("g", 7);
+
+        cache.get("a");
+
+        for node in cache.iter() {
+            println!("{:?}", node);
+        }
     }
 }
