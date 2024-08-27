@@ -2,11 +2,7 @@ use std::collections::HashMap;
 
 type Index = usize;
 
-struct InsertIndex {
-    new_index: Index,
-    removed_index: Option<Index>,
-}
-
+#[allow(unused)]
 struct Node<V> {
     previous: Option<Index>,
     next: Option<Index>,
@@ -24,13 +20,19 @@ impl<V> std::fmt::Debug for Node<V> {
     }
 }
 
-struct LRUCache<const N: usize, V> {
+pub struct LRUCache<const N: usize, V> {
     map: HashMap<String, Index>,
     buffer: [Option<Node<V>>; N],
     head_index: usize,
     tail_index: usize,
     len: usize,
     free: Vec<Index>,
+}
+
+impl<const N: usize, V> Default for LRUCache<N, V> {
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 impl<const N: usize, V> LRUCache<N, V> {
@@ -51,15 +53,6 @@ impl<const N: usize, V> LRUCache<N, V> {
         }
     }
 
-    fn move_head(&mut self, index: Index) {
-        let removed_node = &self.buffer[index];
-
-        if let Some(node) = removed_node {
-            if let Some(next_node) = node.next {
-                let next_node = &self.buffer[next_node];
-            }
-        }
-    }
     /// Push a new value to the front of the list.
     /// If the list is already full the last item is popped from the back of the list to make space.
     fn push_front(&mut self, key: String, value: V) -> (Index, Option<String>) {
@@ -106,9 +99,7 @@ impl<const N: usize, V> LRUCache<N, V> {
 
             let update_node = &mut self.buffer[self.head_index];
             let old_node = update_node.replace(node);
-            let old_key = old_node.map(|node| node.key);
-
-            old_key
+            old_node.map(|node| node.key)
         };
 
         // Get second list item and update its previous node to the new head node.
@@ -138,7 +129,7 @@ impl<const N: usize, V> LRUCache<N, V> {
 
     fn get_node_mut(&mut self, index: Option<Index>) -> Option<&mut Node<V>> {
         match index {
-            Some(idx) => (&mut self.buffer[idx]).as_mut(),
+            Some(idx) => self.buffer[idx].as_mut(),
             None => None,
         }
     }
@@ -185,13 +176,13 @@ impl<const N: usize, V> LRUCache<N, V> {
 
     pub fn get(&mut self, key: &str) -> Option<&V> {
         println!("{:?}", self.map);
-        let index = self.map.get(key).map(|index| *index);
+        let index = self.map.get(key).copied();
 
         match index {
             Some(index) => {
                 let (key, value) = self.remove(index).unwrap();
                 println!("{}", key);
-                let (new_index, old_key) = self.push_front(key.clone(), value);
+                let (new_index, _old_key) = self.push_front(key.clone(), value);
                 let _ = self.map.insert(key, new_index);
                 let v = self.buffer[new_index].as_ref().map(|node| &node.value);
                 v
