@@ -20,12 +20,12 @@ impl<V> std::fmt::Debug for Node<V> {
     }
 }
 
-pub struct LRUCacheIter<'a, V, const N: usize> {
+pub struct LRUCacheIter<'a, V> {
     current_idx: Option<usize>,
-    buffer: &'a [Option<Node<V>>; N],
+    buffer: &'a [Option<Node<V>>],
 }
 
-impl<'a, V, const N: usize> Iterator for LRUCacheIter<'a, V, N> {
+impl<'a, V> Iterator for LRUCacheIter<'a, V> {
     type Item = &'a V;
 
     fn next(&mut self) -> Option<Self::Item> {
@@ -44,34 +44,37 @@ impl<'a, V, const N: usize> Iterator for LRUCacheIter<'a, V, N> {
     }
 }
 
-pub struct LRUCache<const N: usize, V> {
+pub struct LRUCache<V> {
     map: HashMap<String, Index>,
-    buffer: [Option<Node<V>>; N],
+    buffer: Box<[Option<Node<V>>]>,
     head_index: usize,
     tail_index: usize,
     len: usize,
+    capacity: usize,
     free: Vec<Index>,
 }
 
-impl<const N: usize, V> Default for LRUCache<N, V> {
-    fn default() -> Self {
-        Self::new()
-    }
-}
+impl<V> LRUCache<V> {
+    pub fn new(size: usize) -> Self {
+        let mut buf: Vec<Option<Node<V>>> = Vec::with_capacity(size);
 
-impl<const N: usize, V> LRUCache<N, V> {
-    pub fn new() -> Self {
+        // ToDo: Figure out how to init this faster!
+        for _ in 0..size {
+            buf.push(None);
+        }
+
         Self {
             map: HashMap::new(),
-            buffer: std::array::from_fn(|_| None),
+            buffer: buf.into_boxed_slice(),
             head_index: 0,
             tail_index: 0,
             len: 0,
+            capacity: size,
             free: Vec::new(),
         }
     }
 
-    pub fn iter(&self) -> LRUCacheIter<'_, V, N> {
+    pub fn iter(&self) -> LRUCacheIter<'_, V> {
         LRUCacheIter {
             current_idx: Some(self.head_index),
             buffer: &self.buffer,
@@ -103,7 +106,7 @@ impl<const N: usize, V> LRUCache<N, V> {
             }
         };
 
-        let old_key = if self.len < N {
+        let old_key = if self.len < self.capacity {
             // If the list has not been filled then keep track of space to the right.
             // The new head of the list is the next free space to the right (i.e. the current value of self.len)
             self.head_index = self.len;
@@ -229,7 +232,7 @@ mod tests {
 
     #[test]
     fn get_makes_most_recent() {
-        let mut cache = LRUCache::<3, u32>::new();
+        let mut cache = LRUCache::new(3);
 
         cache.set("a", 1);
         cache.set("b", 2);
@@ -256,7 +259,7 @@ mod tests {
 
     #[test]
     fn test_set_get() {
-        let mut cache = LRUCache::<3, u32>::new();
+        let mut cache = LRUCache::new(3);
 
         cache.set("a", 1);
         cache.set("b", 2);
@@ -276,7 +279,7 @@ mod tests {
 
     #[test]
     fn iter_by_recency() {
-        let mut cache = LRUCache::<100, u32>::new();
+        let mut cache = LRUCache::new(1000);
 
         cache.set("a", 1);
         cache.set("b", 2);
