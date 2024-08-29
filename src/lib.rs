@@ -74,6 +74,7 @@ impl<V> LRUCache<V> {
         }
     }
 
+    /// Create an iterator over values in the cache.
     pub fn iter(&self) -> LRUCacheIter<'_, V> {
         LRUCacheIter {
             current_idx: Some(self.head_index),
@@ -81,16 +82,16 @@ impl<V> LRUCache<V> {
         }
     }
 
+    /// Replace the vaue at a specific buffer index.
     fn replace_at_index(&mut self, index: Index, value: V) {
         if let Some(node) = &mut self.buffer[index] {
             node.value = value
         }
     }
 
-    /// Push a new value to the front of the list.
-    /// If the list is already full the last item is popped from the back of the list to make space.
-    fn push_front(&mut self, key: String, value: V) -> (Index, Option<String>) {
-        let node = if self.len == 0 {
+    // Create a new node to insert at the head of the list.
+    fn new_head_node(&self, key: String, value: V) -> Node<V> {
+        if self.len == 0 {
             Node {
                 previous: None,
                 next: None,
@@ -104,16 +105,22 @@ impl<V> LRUCache<V> {
                 key,
                 value,
             }
-        };
+        }
+    }
+
+    /// Push a new value to the front of the list.
+    /// If the list is already full the last item is popped from the back of the list to make space.
+    fn push_front(&mut self, key: String, value: V) -> (Index, Option<String>) {
+        let node = self.new_head_node(key, value);
 
         let old_key = if self.len < self.capacity {
-            // If the list has not been filled then keep track of space to the right.
-            // The new head of the list is the next free space to the right (i.e. the current value of self.len)
+            // The new head of the list is the next free space in the buffer (i.e. the current value of self.len)
             self.head_index = self.len;
             self.len += 1;
             self.buffer[self.head_index] = Some(node);
             None
         } else if let Some(idx) = self.free.pop() {
+            // Otherwise check for any space that has been freed (i.e contained in the free list).
             self.head_index = idx;
             self.buffer[self.head_index] = Some(node);
             None
@@ -122,13 +129,18 @@ impl<V> LRUCache<V> {
             self.head_index = self.tail_index;
 
             // The new tail is the node before the old tail. Update this nodes `next` node to None (i.e. make it the tail node).
-            if let Some(node) = &mut self.buffer[self.head_index] {
-                if let Some(new_tail_node) = node.previous {
-                    self.tail_index = new_tail_node;
-                    if let Some(tail_node) = &mut self.buffer[self.tail_index] {
-                        tail_node.next = None;
-                    }
-                }
+            let old_node = self.buffer[self.head_index]
+                .as_ref()
+                .expect("Tail node should be a valid node and not None.");
+
+            if let Some(new_tail_node) = old_node.previous {
+                self.tail_index = new_tail_node;
+
+                let tail_node = self.buffer[self.tail_index]
+                    .as_mut()
+                    .expect("The tail nodes previous node should be a valid Node and not None.");
+
+                tail_node.next = None;
             }
 
             let update_node = &mut self.buffer[self.head_index];
@@ -137,27 +149,35 @@ impl<V> LRUCache<V> {
         };
 
         // Get second list item and update its previous node to the new head node.
-        if let Some(node) = &self.buffer[self.head_index] {
-            if let Some(second_node_index) = node.next {
-                if let Some(second_node) = &mut self.buffer[second_node_index] {
-                    second_node.previous = Some(self.head_index)
-                }
-            }
+        let head_node = &self.buffer[self.head_index]
+            .as_mut()
+            .expect("The head node should be a valid node and not None.");
+
+        if let Some(next_node_index) = head_node.next {
+            let next_node = &mut self.buffer[next_node_index]
+                .as_mut()
+                .expect("The next node should be a valid Node and not None.");
+
+            next_node.previous = Some(self.head_index)
         }
+
         (self.head_index, old_key)
     }
 
     pub fn set(&mut self, key: impl Into<String>, value: V) {
         let key = key.into();
-        if !self.map.contains_key(&key) {
-            let (new_index, removed_key) = self.push_front(key.clone(), value);
-            self.map.insert(key, new_index);
-            if let Some(old_key) = removed_key {
-                self.map.remove(&old_key);
+        match !self.map.contains_key(&key) {
+            true => {
+                let (new_index, removed_key) = self.push_front(key.clone(), value);
+                self.map.insert(key, new_index);
+                if let Some(old_key) = removed_key {
+                    self.map.remove(&old_key);
+                }
             }
-        } else {
-            let existing_index = *self.map.get(&key).expect("The expected node was not found");
-            self.replace_at_index(existing_index, value);
+            false => {
+                let existing_index = *self.map.get(&key).expect("The expected node was not found");
+                self.replace_at_index(existing_index, value);
+            }
         }
     }
 
@@ -209,13 +229,11 @@ impl<V> LRUCache<V> {
     }
 
     pub fn get(&mut self, key: &str) -> Option<&V> {
-        println!("{:?}", self.map);
         let index = self.map.get(key).copied();
 
         match index {
             Some(index) => {
                 let (key, value) = self.remove(index).unwrap();
-                println!("{}", key);
                 let (new_index, _old_key) = self.push_front(key.clone(), value);
                 let _ = self.map.insert(key, new_index);
                 let v = self.buffer[new_index].as_ref().map(|node| &node.value);
