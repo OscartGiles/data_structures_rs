@@ -20,12 +20,12 @@ impl<V> std::fmt::Debug for Node<V> {
     }
 }
 
-pub struct LRUCacheIter<'a, V> {
+pub struct LruCacheIter<'a, V> {
     current_idx: Option<usize>,
     buffer: &'a [Option<Node<V>>],
 }
 
-impl<'a, V> Iterator for LRUCacheIter<'a, V> {
+impl<'a, V> Iterator for LruCacheIter<'a, V> {
     type Item = &'a V;
 
     fn next(&mut self) -> Option<Self::Item> {
@@ -44,7 +44,7 @@ impl<'a, V> Iterator for LRUCacheIter<'a, V> {
     }
 }
 
-pub struct LRUCache<V> {
+pub struct LruCache<V> {
     map: HashMap<String, Index>,
     buffer: Box<[Option<Node<V>>]>,
     head_index: usize,
@@ -54,7 +54,7 @@ pub struct LRUCache<V> {
     free: Vec<Index>,
 }
 
-impl<V> LRUCache<V> {
+impl<V> LruCache<V> {
     pub fn new(size: usize) -> Self {
         let mut buf: Vec<Option<Node<V>>> = Vec::with_capacity(size);
 
@@ -75,8 +75,8 @@ impl<V> LRUCache<V> {
     }
 
     /// Create an iterator over values in the cache.
-    pub fn iter(&self) -> LRUCacheIter<'_, V> {
-        LRUCacheIter {
+    pub fn iter(&self) -> LruCacheIter<'_, V> {
+        LruCacheIter {
             current_idx: Some(self.head_index),
             buffer: &self.buffer,
         }
@@ -246,11 +246,11 @@ impl<V> LRUCache<V> {
 
 #[cfg(test)]
 mod tests {
-    use crate::LRUCache;
+    use crate::LruCache;
 
     #[test]
     fn get_makes_most_recent() {
-        let mut cache = LRUCache::new(3);
+        let mut cache = LruCache::new(3);
 
         cache.set("a", 1);
         cache.set("b", 2);
@@ -277,7 +277,7 @@ mod tests {
 
     #[test]
     fn test_set_get() {
-        let mut cache = LRUCache::new(3);
+        let mut cache = LruCache::new(3);
 
         cache.set("a", 1);
         cache.set("b", 2);
@@ -297,7 +297,7 @@ mod tests {
 
     #[test]
     fn iter_by_recency() {
-        let mut cache = LRUCache::new(1000);
+        let mut cache = LruCache::new(1000);
 
         cache.set("a", 1);
         cache.set("b", 2);
