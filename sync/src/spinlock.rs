@@ -15,8 +15,12 @@ impl<T> SpinLock<T> {
         }
     }
 
+    /// Lock and return a Gaurd which allows access via referece and mutable reference.
     pub fn lock(&self) -> Guard<T> {
+        // If locked keep spinning until we can set to true.
+        // Acquire means we see all operations before a Release on another thread.
         while self.locked.swap(true, Acquire) {
+            // Provide a hint that we're in a spin oop
             std::hint::spin_loop()
         }
 
